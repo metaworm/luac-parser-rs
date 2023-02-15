@@ -1,4 +1,4 @@
-#![feature(ptr_sub_ptr)]
+#![feature(ptr_sub_ptr, once_cell)]
 
 use std::borrow::Cow;
 
@@ -29,6 +29,7 @@ use serde::{Deserialize, Serialize};
 mod lua51;
 mod lua53;
 mod lua54;
+pub mod utils;
 
 pub type IResult<I, O, E = ErrorTree<I>> = Result<(I, O), nom::Err<E>>;
 
