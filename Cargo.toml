@@ -1,0 +1,15 @@
+[package]
+name = "luac-parser"
+version = "0.1.0"
+edition = "2021"
+documentation = "https://docs.rs/luac-parser"
+license = "MIT"
+include = ["/src", "README.md"]
+keywords = ['lua', 'bytecode', 'parser']
+description = "lua bytecode parser"
+
+[dependencies]
+log = "0.4"
+nom = "7"
+nom-supreme = '0.8'
+serde = {version = '1', features = ['derive']}
