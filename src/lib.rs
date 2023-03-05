@@ -337,3 +337,14 @@ pub fn parse(input: &[u8]) -> Result<LuaBytecode, String> {
         )
     })
 }
+
+#[cfg(feature = "rmp-serde")]
+impl LuaBytecode {
+    pub fn from_msgpack(mp: &[u8]) -> Result<Self, rmp_serde::decode::Error> {
+        rmp_serde::from_slice(mp)
+    }
+
+    pub fn to_msgpack(&self) -> Result<Vec<u8>, rmp_serde::encode::Error> {
+        rmp_serde::to_vec(self)
+    }
+}
