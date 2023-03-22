@@ -30,11 +30,10 @@ fn lua_int(input: &[u8]) -> IResult<&[u8], u64> {
 
 fn load_string(input: &[u8]) -> IResult<&[u8], &[u8]> {
     let (input, n) = load_size(input)?;
-    let n = n as u64;
     if n == 0 {
         return Ok((input, &[]));
     }
-    take(n as usize - 1)(input)
+    context("string", take(n - 1))(input)
 }
 
 fn load_upvalue(input: &[u8]) -> IResult<&[u8], UpVal> {
@@ -153,7 +152,7 @@ fn take_lv_false(input: &[u8]) -> IResult<&[u8], LuaConstant> {
 }
 
 fn take_lv_true(input: &[u8]) -> IResult<&[u8], LuaConstant> {
-    let (input, _) = tag(b"\x14")(input)?;
+    let (input, _) = tag(b"\x11")(input)?;
     Ok((input, LuaConstant::Bool(true)))
 }
 
