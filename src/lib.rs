@@ -26,14 +26,15 @@ use nom::{
 use nom_supreme::{error::*, ParserExt};
 use serde::{Deserialize, Serialize};
 
-mod lua51;
-mod lua53;
-mod lua54;
+pub mod lua51;
+pub mod lua53;
+pub mod lua54;
+pub mod luajit;
 pub mod utils;
 
 pub type IResult<I, O, E = ErrorTree<I>> = Result<(I, O), nom::Err<E>>;
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Default, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LuaHeader {
     pub lua_version: u8,
     pub format_version: u8,
@@ -43,6 +44,9 @@ pub struct LuaHeader {
     pub instruction_size: u8,
     pub number_size: u8,
     pub number_integral: bool,
+    // for luajit
+    pub stripped: bool,
+    pub has_ffi: bool,
 }
 
 impl LuaHeader {
@@ -62,13 +66,39 @@ pub enum LuaNumber {
     Float(f64),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum LuaConstant {
     Null,
     Bool(bool),
     Number(LuaNumber),
     String(Vec<u8>),
+    // for luajit
+    Proto(usize),
+    Table {
+        array: Box<[Self]>,
+        hash: Box<[(Self, Self)]>,
+    },
+}
+
+impl std::fmt::Debug for LuaConstant {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Null => write!(f, "Null"),
+            Self::Bool(arg0) => f.debug_tuple("Bool").field(arg0).finish(),
+            Self::Number(arg0) => f.debug_tuple("Number").field(arg0).finish(),
+            Self::String(arg0) => f
+                .debug_tuple("String")
+                .field(&String::from_utf8_lossy(arg0))
+                .finish(),
+            Self::Proto(i) => f.debug_tuple("Proto").field(i).finish(),
+            Self::Table { array, hash } => f
+                .debug_struct("Table")
+                .field("array", array)
+                .field("hash", hash)
+                .finish(),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -84,25 +114,28 @@ pub struct LuaVarArgInfo {
     pub needs_arg: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct UpVal {
     pub on_stack: bool,
     pub id: u8,
     pub kind: u8,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct LuaChunk {
     pub name: Vec<u8>,
     pub line_defined: u64,
     pub last_line_defined: u64,
     pub num_upvalues: u8,
     pub num_params: u8,
-    pub is_vararg: Option<LuaVarArgInfo>,
+    /// Equivalent to framesize for luajit
     pub max_stack: u8,
+    /// for luajit
+    pub flags: u8,
+    pub is_vararg: Option<LuaVarArgInfo>,
     pub instructions: Vec<u32>,
     pub constants: Vec<LuaConstant>,
-    pub prototypes: Vec<LuaChunk>,
+    pub prototypes: Vec<Self>,
     pub source_lines: Vec<(u32, u32)>,
     pub locals: Vec<LuaLocal>,
     pub upvalue_infos: Vec<UpVal>, // for lua53
@@ -112,6 +145,10 @@ pub struct LuaChunk {
 impl LuaChunk {
     pub fn name(&self) -> Cow<str> {
         String::from_utf8_lossy(&self.name)
+    }
+
+    pub fn flags(&self) -> luajit::ProtoFlags {
+        luajit::ProtoFlags::from_bits(self.flags).unwrap()
     }
 }
 
@@ -146,7 +183,7 @@ fn lua_header(input: &[u8]) -> IResult<&[u8], LuaHeader, ErrorTree<&[u8]>> {
                     number_size,
                     number_integral,
                 )| LuaHeader {
-                    lua_version: 0x51,
+                    lua_version: LUA51,
                     format_version,
                     big_endian: big_endian != 1,
                     int_size,
@@ -154,6 +191,7 @@ fn lua_header(input: &[u8]) -> IResult<&[u8], LuaHeader, ErrorTree<&[u8]>> {
                     instruction_size,
                     number_size,
                     number_integral: number_integral != 0,
+                    ..Default::default()
                 },
             ),
             map(
@@ -183,7 +221,7 @@ fn lua_header(input: &[u8]) -> IResult<&[u8], LuaHeader, ErrorTree<&[u8]>> {
                     _,
                     _,
                 )| LuaHeader {
-                    lua_version: 0x53,
+                    lua_version: LUA53,
                     format_version,
                     big_endian: cfg!(target_endian = "big"),
                     int_size,
@@ -191,6 +229,7 @@ fn lua_header(input: &[u8]) -> IResult<&[u8], LuaHeader, ErrorTree<&[u8]>> {
                     instruction_size,
                     number_size,
                     number_integral: false,
+                    ..Default::default()
                 },
             ),
             map(
@@ -216,7 +255,7 @@ fn lua_header(input: &[u8]) -> IResult<&[u8], LuaHeader, ErrorTree<&[u8]>> {
                     _,
                     _,
                 )| LuaHeader {
-                    lua_version: 0x54,
+                    lua_version: LUA54,
                     format_version,
                     big_endian: cfg!(target_endian = "big"),
                     int_size: 4,
@@ -224,6 +263,7 @@ fn lua_header(input: &[u8]) -> IResult<&[u8], LuaHeader, ErrorTree<&[u8]>> {
                     instruction_size,
                     number_size,
                     number_integral: false,
+                    ..Default::default()
                 },
             ),
         )),
@@ -318,12 +358,13 @@ fn lua_number<'a>(header: &LuaHeader) -> impl Parser<&'a [u8], LuaNumber, ErrorT
 }
 
 pub fn lua_bytecode(input: &[u8]) -> IResult<&[u8], LuaBytecode, ErrorTree<&[u8]>> {
-    let (input, header) = lua_header(input)?;
+    let (input, header) = alt((lua_header, luajit::lj_header))(input)?;
     log::trace!("header: {header:?}");
     let (input, main_chunk) = match header.lua_version {
-        0x51 => lua51::lua_chunk(&header).parse(input)?,
-        0x53 => lua53::lua_chunk(&header).parse(input)?,
-        0x54 => lua54::lua_chunk(&header).parse(input)?,
+        LUA51 => lua51::lua_chunk(&header).parse(input)?,
+        LUA53 => lua53::lua_chunk(&header).parse(input)?,
+        LUA54 => lua54::lua_chunk(&header).parse(input)?,
+        LUAJ1 | LUAJ2 => luajit::lj_chunk(&header).parse(input)?,
         _ => context("unsupported lua version", fail)(input)?,
     };
     Ok((input, LuaBytecode { header, main_chunk }))
@@ -348,3 +389,10 @@ impl LuaBytecode {
         rmp_serde::to_vec(self)
     }
 }
+
+pub const LUA51: u8 = 0x51;
+pub const LUA52: u8 = 0x52;
+pub const LUA53: u8 = 0x53;
+pub const LUA54: u8 = 0x54;
+pub const LUAJ1: u8 = 0x11;
+pub const LUAJ2: u8 = 0x12;

@@ -1,7 +1,7 @@
 
 # luac-parser (中文)
 
-lua字节码解析器, 目前支持 lua51, lua53, lua54
+lua字节码解析器, 目前支持 lua51, lua53, lua54, luajit
 
 这是目前效果最好的lua反编译器 [metaworm's luadec](http://luadec.metaworm.site) 的一部分
 
@@ -11,7 +11,7 @@ lua字节码解析器, 目前支持 lua51, lua53, lua54
 
 # luac-parser (in English)
 
-lua bytecode parser, currently support lua51, lua53, lua54
+lua bytecode parser, currently support lua51, lua53, lua54, luajit
 
 This is part of [metaworm's luadec][luadec], which is the best lua decompiler at present
 

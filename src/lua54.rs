@@ -116,6 +116,7 @@ pub fn lua_chunk<'h, 'a: 'h>(
                     line_defined,
                     last_line_defined,
                     num_upvalues: upvalues.len() as _,
+                    flags: 0,
                     num_params,
                     is_vararg: if (is_vararg & 2) != 0 {
                         Some(LuaVarArgInfo {

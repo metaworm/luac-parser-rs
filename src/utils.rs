@@ -52,6 +52,8 @@ impl LuaConstant {
             Self::Number(LuaNumber::Float(f)) => f.to_string(),
             Self::Number(LuaNumber::Integer(i)) => i.to_string(),
             Self::Null => "nil".into(),
+            Self::Proto(i) => format!("function<{i}>"),
+            Self::Table { .. } => "{}".into(),
         }
     }
 }
