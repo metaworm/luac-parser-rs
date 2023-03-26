@@ -45,7 +45,9 @@ pub fn lua_chunk<'h, 'a: 'h>(
                         0 => success(LuaConstant::Null)(input),
                         1 => map(be_u8, |v| LuaConstant::Bool(v != 0))(input),
                         3 => map(lua_number(header), |v| LuaConstant::Number(v))(input),
-                        4 => map(lua_string(header), |v| LuaConstant::String(v.to_vec()))(input),
+                        4 => map(lua_string(header), |v| {
+                            LuaConstant::String(v.to_vec().into())
+                        })(input),
                         _ => Err(nom::Err::Error(ErrorTree::from_char(
                             input,
                             char::from_digit(b as _, 10).unwrap_or('x'),
@@ -91,6 +93,7 @@ pub fn lua_chunk<'h, 'a: 'h>(
                     max_stack,
                     instructions,
                     constants,
+                    num_constants: vec![],
                     prototypes,
                     source_lines,
                     locals,

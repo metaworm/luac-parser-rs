@@ -123,6 +123,7 @@ pub fn lua_chunk<'h, 'a: 'h>(
                     locals,
                     upvalue_names,
                     upvalue_infos: upvalues,
+                    num_constants: vec![],
                 }
             },
         )
@@ -157,7 +158,7 @@ fn take_lv_str(input: &[u8]) -> IResult<&[u8], LuaConstant> {
         length_data(le_u8_minus_one),
     ))(input)?;
 
-    Ok((input, LuaConstant::String(data.to_vec())))
+    Ok((input, LuaConstant::String(data.to_vec().into())))
 }
 
 fn take_lv_u64(input: &[u8]) -> IResult<&[u8], LuaConstant> {

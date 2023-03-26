@@ -119,7 +119,7 @@ fn lj_complex_constant<'a, 'h>(
             _ if ty >= BCDUMP_KGC_STR as u64 => {
                 let len = ty - BCDUMP_KGC_STR as u64;
                 let (input, s) = take(len as usize)(input)?;
-                (input, LuaConstant::String(s.to_vec()))
+                (input, LuaConstant::String(s.to_vec().into()))
             }
             _ => unreachable!("BCDUMP_KGC: {ty}"),
         })
@@ -157,22 +157,22 @@ fn lj_tabk(input: &[u8]) -> IResult<&[u8], LuaConstant, ErrorTree<&[u8]>> {
         _ if ty >= BCDUMP_KTAB_STR as usize => {
             let len = ty - BCDUMP_KTAB_STR as usize;
             let (input, s) = take(len)(input)?;
-            (input, LuaConstant::String(s.to_vec()))
+            (input, LuaConstant::String(s.to_vec().into()))
         }
         _ => unreachable!("BCDUMP_KTAB: {ty}"),
     })
 }
 
-fn lj_num_constant(input: &[u8]) -> IResult<&[u8], LuaConstant, ErrorTree<&[u8]>> {
+fn lj_num_constant(input: &[u8]) -> IResult<&[u8], LuaNumber, ErrorTree<&[u8]>> {
     let isnum = be_u8(input)?.1 & 1 != 0;
     let (input, lo) = uleb128_33(input)?;
     if isnum {
         // TODO: number
         map(leb128_u32, |hi| {
-            LuaConstant::Number(LuaNumber::Integer((hi as i64) << 32 | lo as i64))
+            LuaNumber::Integer((hi as i64) << 32 | lo as i64)
         })(input)
     } else {
-        Ok((input, LuaConstant::Number(LuaNumber::Integer(lo as _))))
+        Ok((input, LuaNumber::Integer(lo as _)))
     }
 }
 
@@ -230,7 +230,7 @@ fn lj_proto<'a, 'h>(
             count(lj_num_constant, numeric_constants_count as usize)
                 .context("count numeric_constants"),
         ))(input)?;
-        constants.extend(num_constants);
+        constants.reverse();
 
         if debuginfo_size > 0 {
             (input, _) = take(debuginfo_size as usize)(input)?;
@@ -248,6 +248,7 @@ fn lj_proto<'a, 'h>(
                 instructions,
                 upvalue_infos,
                 constants,
+                num_constants,
                 max_stack: framesize,
                 prototypes: protos.into_inner(),
                 ..Default::default()

@@ -1,6 +1,6 @@
 #![feature(ptr_sub_ptr, once_cell)]
 
-use std::borrow::Cow;
+use std::{borrow::Cow, rc::Rc};
 
 #[allow(unused_imports)]
 use nom::{
@@ -66,13 +66,22 @@ pub enum LuaNumber {
     Float(f64),
 }
 
+impl std::fmt::Display for LuaNumber {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Float(n) => write!(f, "{n}"),
+            Self::Integer(i) => write!(f, "{i}"),
+        }
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum LuaConstant {
     Null,
     Bool(bool),
     Number(LuaNumber),
-    String(Vec<u8>),
+    String(Rc<Vec<u8>>),
     // for luajit
     Proto(usize),
     Table {
@@ -135,6 +144,8 @@ pub struct LuaChunk {
     pub is_vararg: Option<LuaVarArgInfo>,
     pub instructions: Vec<u32>,
     pub constants: Vec<LuaConstant>,
+    /// for luajit
+    pub num_constants: Vec<LuaNumber>,
     pub prototypes: Vec<Self>,
     pub source_lines: Vec<(u32, u32)>,
     pub locals: Vec<LuaLocal>,

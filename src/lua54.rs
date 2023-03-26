@@ -133,6 +133,7 @@ pub fn lua_chunk<'h, 'a: 'h>(
                     source_lines,
                     locals,
                     upvalue_names,
+                    num_constants: vec![],
                     upvalue_infos: upvalues,
                 }
             },
@@ -164,7 +165,7 @@ fn take_lv_float(input: &[u8]) -> IResult<&[u8], LuaConstant> {
 
 fn take_lv_str(input: &[u8]) -> IResult<&[u8], LuaConstant> {
     let (input, (_, data)) = tuple((alt((tag(b"\x04"), tag("\x14"))), load_string))(input)?;
-    Ok((input, LuaConstant::String(data.to_vec())))
+    Ok((input, LuaConstant::String(data.to_vec().into())))
 }
 
 fn take_lv_u64(input: &[u8]) -> IResult<&[u8], LuaConstant> {
