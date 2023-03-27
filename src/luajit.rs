@@ -2,10 +2,7 @@
 
 use std::cell::RefCell;
 
-use nom::{
-    multi::count,
-    number::complete::{be_u16, le_u8},
-};
+use nom::{multi::count, number::complete::le_u8};
 use nom_leb128::{leb128_u32, leb128_u64, leb128_usize};
 
 use super::*;
@@ -81,11 +78,6 @@ pub fn lj_header(input: &[u8]) -> IResult<&[u8], LuaHeader, ErrorTree<&[u8]>> {
         )),
     ))(input)?;
     Ok((rest, result))
-}
-
-fn lj_upval(input: &[u8]) -> IResult<&[u8], UpVal, ErrorTree<&[u8]>> {
-    // TODO:
-    map(be_u16, |_| UpVal::default())(input)
 }
 
 fn lj_complex_constant<'a, 'h>(
@@ -221,7 +213,15 @@ fn lj_proto<'a, 'h>(
         ) = tuple((
             count(complete::u32(header.endian()), instructions_count as usize)
                 .context("count instruction"),
-            count(lj_upval, num_upvalues as usize).context("count upvals"),
+            count(
+                map(complete::u16(header.endian()), |v| UpVal {
+                    on_stack: v & 0x8000 != 0,
+                    id: (v & 0x7FFF) as _,
+                    kind: 0,
+                }),
+                num_upvalues as usize,
+            )
+            .context("count upvals"),
             count(
                 lj_complex_constant(stack, &protos),
                 complex_constants_count as usize,
