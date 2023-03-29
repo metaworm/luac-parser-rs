@@ -120,14 +120,18 @@ fn lj_complex_constant<'a, 'h>(
 
 fn lj_tab(input: &[u8]) -> IResult<&[u8], LuaConstant, ErrorTree<&[u8]>> {
     let (input, (narray, nhash)) = tuple((leb128_u32, leb128_u32))(input)?;
-    let (input, (arr, hash)) = tuple((
+    let (input, (arr, mut hash)) = tuple((
         count(lj_tabk, narray as _),
         count(tuple((lj_tabk, lj_tabk)), nhash as _),
     ))(input)?;
+    match arr.first() {
+        Some(LuaConstant::Null) | None => {}
+        Some(a0) => hash.push((LuaConstant::Number(LuaNumber::Integer(0)), a0.clone())),
+    }
     Ok((
         input,
         LuaConstant::Table {
-            array: arr.into_boxed_slice(),
+            array: arr[1..].to_vec().into(),
             hash: hash.into_boxed_slice(),
         },
     ))
