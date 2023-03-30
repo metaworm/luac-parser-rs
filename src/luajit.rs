@@ -83,6 +83,7 @@ pub fn lj_header(input: &[u8]) -> IResult<&[u8], LuaHeader, ErrorTree<&[u8]>> {
 fn lj_complex_constant<'a, 'h>(
     stack: &'h RefCell<Vec<LuaChunk>>,
     protos: &'h RefCell<Vec<LuaChunk>>,
+    endian: Endianness,
 ) -> impl Parser<&'a [u8], LuaConstant, ErrorTree<&'a [u8]>> + 'h {
     move |input| {
         let (input, ty) = leb128_u64(input)?;
@@ -99,7 +100,7 @@ fn lj_complex_constant<'a, 'h>(
                     ))
                 },
             )(input)?,
-            BCDUMP_KGC_TAB => lj_tab(input)?,
+            BCDUMP_KGC_TAB => lj_tab(endian).context("read table").parse(input)?,
             BCDUMP_KGC_CHILD => match stack.borrow_mut().pop() {
                 Some(proto) => {
                     let result = LuaConstant::Proto(protos.borrow().len());
@@ -118,57 +119,78 @@ fn lj_complex_constant<'a, 'h>(
     }
 }
 
-fn lj_tab(input: &[u8]) -> IResult<&[u8], LuaConstant, ErrorTree<&[u8]>> {
-    let (input, (narray, nhash)) = tuple((leb128_u32, leb128_u32))(input)?;
-    let (input, (arr, mut hash)) = tuple((
-        count(lj_tabk, narray as _),
-        count(tuple((lj_tabk, lj_tabk)), nhash as _),
-    ))(input)?;
-    match arr.first() {
-        Some(LuaConstant::Null) | None => {}
-        Some(a0) => hash.push((LuaConstant::Number(LuaNumber::Integer(0)), a0.clone())),
-    }
-    Ok((
-        input,
-        LuaConstant::Table {
-            array: arr[1..].to_vec().into(),
-            hash: hash.into_boxed_slice(),
-        },
-    ))
-}
-
-fn lj_tabk(input: &[u8]) -> IResult<&[u8], LuaConstant, ErrorTree<&[u8]>> {
-    let (input, ty) = leb128_usize(input)?;
-    Ok(match ty as u8 {
-        BCDUMP_KTAB_NIL => (input, LuaConstant::Null),
-        BCDUMP_KTAB_FALSE => (input, LuaConstant::Bool(false)),
-        BCDUMP_KTAB_TRUE => (input, LuaConstant::Bool(true)),
-        BCDUMP_KTAB_INT => map(leb128_u32, |n| {
-            LuaConstant::Number(LuaNumber::Integer(n as _))
-        })(input)?,
-        // TODO:
-        BCDUMP_KTAB_NUM => map(complete::le_f64, |n| {
-            LuaConstant::Number(LuaNumber::Float(n as _))
-        })(input)?,
-        _ if ty >= BCDUMP_KTAB_STR as usize => {
-            let len = ty - BCDUMP_KTAB_STR as usize;
-            let (input, s) = take(len)(input)?;
-            (input, LuaConstant::String(s.to_vec().into()))
+fn lj_tab<'a>(endian: Endianness) -> impl Parser<&'a [u8], LuaConstant, ErrorTree<&'a [u8]>> {
+    move |input: &'a [u8]| {
+        let (input, (narray, nhash)) = tuple((leb128_u32, leb128_u32))(input)?;
+        // println!("#array {narray} #hash {nhash}");
+        let (input, (arr, mut hash)) = tuple((
+            count(lj_tabk(endian).context("count table array"), narray as _),
+            count(
+                tuple((lj_tabk(endian), lj_tabk(endian))).context("count table hash"),
+                nhash as _,
+            ),
+        ))(input)?;
+        match arr.first() {
+            Some(LuaConstant::Null) | None => {}
+            Some(a0) => hash.push((LuaConstant::Number(LuaNumber::Integer(0)), a0.clone())),
         }
-        _ => unreachable!("BCDUMP_KTAB: {ty}"),
-    })
+        Ok((
+            input,
+            LuaConstant::Table {
+                array: arr[1.min(arr.len())..].to_vec().into(),
+                hash: hash.into_boxed_slice(),
+            },
+        ))
+    }
 }
 
-fn lj_num_constant(input: &[u8]) -> IResult<&[u8], LuaNumber, ErrorTree<&[u8]>> {
-    let isnum = be_u8(input)?.1 & 1 != 0;
-    let (input, lo) = uleb128_33(input)?;
-    if isnum {
-        // TODO: number
-        map(leb128_u32, |hi| {
-            LuaNumber::Integer((hi as i64) << 32 | lo as i64)
-        })(input)
-    } else {
-        Ok((input, LuaNumber::Integer(lo as _)))
+fn combine_number(lo: u32, hi: u32, endian: Endianness) -> f64 {
+    unsafe {
+        core::mem::transmute(if endian == Endianness::Big {
+            ((lo as u64) << 32) | hi as u64
+        } else {
+            ((hi as u64) << 32) | lo as u64
+        })
+    }
+}
+
+fn lj_tabk<'a>(endian: Endianness) -> impl Parser<&'a [u8], LuaConstant, ErrorTree<&'a [u8]>> {
+    move |input: &'a [u8]| {
+        let (input, ty) = leb128_usize(input)?;
+        // println!("tabk: {ty}");
+        Ok(match ty as u8 {
+            BCDUMP_KTAB_NIL => (input, LuaConstant::Null),
+            BCDUMP_KTAB_FALSE => (input, LuaConstant::Bool(false)),
+            BCDUMP_KTAB_TRUE => (input, LuaConstant::Bool(true)),
+            BCDUMP_KTAB_INT => map(leb128_u32, |n| {
+                LuaConstant::Number(LuaNumber::Integer(n as _))
+            })(input)?,
+            BCDUMP_KTAB_NUM => map(tuple((leb128_u32, leb128_u32)), |(lo, hi)| {
+                LuaConstant::Number(LuaNumber::Float(combine_number(lo, hi, endian)))
+            })(input)?,
+            _ if ty >= BCDUMP_KTAB_STR as usize => {
+                let len = ty - BCDUMP_KTAB_STR as usize;
+                let (input, s) = take(len)(input)?;
+                (input, LuaConstant::String(s.to_vec().into()))
+            }
+            _ => unreachable!("BCDUMP_KTAB: {ty}"),
+        })
+    }
+}
+
+fn lj_num_constant<'a>(
+    endian: Endianness,
+) -> impl Parser<&'a [u8], LuaNumber, ErrorTree<&'a [u8]>> {
+    move |input: &'a [u8]| {
+        let isnum = be_u8(input)?.1 & 1 != 0;
+        let (input, lo) = uleb128_33(input)?;
+        if isnum {
+            map(leb128_u32, |hi| {
+                LuaNumber::Float(combine_number(lo, hi, endian))
+            })(input)
+        } else {
+            Ok((input, LuaNumber::Integer(lo as _)))
+        }
     }
 }
 
@@ -227,12 +249,15 @@ fn lj_proto<'a, 'h>(
             )
             .context("count upvals"),
             count(
-                lj_complex_constant(stack, &protos),
+                lj_complex_constant(stack, &protos, header.endian()),
                 complex_constants_count as usize,
             )
             .context("count complex_constant"),
-            count(lj_num_constant, numeric_constants_count as usize)
-                .context("count numeric_constants"),
+            count(
+                lj_num_constant(header.endian()),
+                numeric_constants_count as usize,
+            )
+            .context("count numeric_constants"),
         ))(input)?;
         constants.reverse();
 
