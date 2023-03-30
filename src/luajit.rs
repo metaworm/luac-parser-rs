@@ -130,16 +130,20 @@ fn lj_tab<'a>(endian: Endianness) -> impl Parser<&'a [u8], LuaConstant, ErrorTre
                 nhash as _,
             ),
         ))(input)?;
-        match arr.first() {
+        let mut aiter = arr.into_iter();
+        match aiter.next() {
             Some(LuaConstant::Null) | None => {}
             Some(a0) => hash.push((LuaConstant::Number(LuaNumber::Integer(0)), a0.clone())),
         }
         Ok((
             input,
-            LuaConstant::Table {
-                array: arr[1.min(arr.len())..].to_vec().into(),
-                hash: hash.into_boxed_slice(),
-            },
+            LuaConstant::Table(
+                ConstTable {
+                    array: aiter.collect(),
+                    hash,
+                }
+                .into(),
+            ),
         ))
     }
 }

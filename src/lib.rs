@@ -1,4 +1,4 @@
-#![feature(ptr_sub_ptr, once_cell)]
+#![feature(ptr_sub_ptr, once_cell, box_patterns)]
 
 use std::{borrow::Cow, rc::Rc};
 
@@ -76,6 +76,12 @@ impl std::fmt::Display for LuaNumber {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
+pub struct ConstTable {
+    pub array: Vec<LuaConstant>,
+    pub hash: Vec<(LuaConstant, LuaConstant)>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum LuaConstant {
     Null,
@@ -84,10 +90,7 @@ pub enum LuaConstant {
     String(Rc<Vec<u8>>),
     // for luajit
     Proto(usize),
-    Table {
-        array: Box<[Self]>,
-        hash: Box<[(Self, Self)]>,
-    },
+    Table(Box<ConstTable>),
 }
 
 impl std::fmt::Debug for LuaConstant {
@@ -101,7 +104,7 @@ impl std::fmt::Debug for LuaConstant {
                 .field(&String::from_utf8_lossy(arg0))
                 .finish(),
             Self::Proto(i) => f.debug_tuple("Proto").field(i).finish(),
-            Self::Table { array, hash } => f
+            Self::Table(box ConstTable { array, hash }) => f
                 .debug_struct("Table")
                 .field("array", array)
                 .field("hash", hash)
