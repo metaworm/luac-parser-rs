@@ -1,34 +1,25 @@
-use super::*;
+use nom::number::complete::le_u8;
 
-pub fn lua_string<'a>(header: &LuaHeader) -> impl Parser<&'a [u8], &'a [u8], ErrorTree<&'a [u8]>> {
-    length_data(lua_size_t(header).map(|x| x as usize))
-        .map(|v| if v.is_empty() { v } else { &v[..v.len() - 1] })
-        .context("string")
-}
+use super::{
+    lua51::{lua_local, lua_string},
+    *,
+};
 
-pub fn lua_local<'a>(header: &LuaHeader) -> impl Parser<&'a [u8], LuaLocal, ErrorTree<&'a [u8]>> {
-    tuple((lua_string(header), lua_int(header), lua_int(header)))
-        .map(|(name, start_pc, end_pc)| LuaLocal {
-            name: String::from_utf8_lossy(name).into(),
-            start_pc,
-            end_pc,
-        })
-        .context("local")
+pub fn load_upvalue(input: &[u8]) -> IResult<&[u8], UpVal> {
+    map(tuple((le_u8, le_u8)), |(on_stack, id)| UpVal {
+        on_stack: on_stack != 0,
+        id,
+        kind: 0,
+    })(input)
 }
 
 pub fn lua_chunk<'h, 'a: 'h>(
     header: &'h LuaHeader,
 ) -> impl Parser<&'a [u8], LuaChunk, ErrorTree<&'a [u8]>> + 'h {
     |input| {
-        let (input, name) = lua_string(header).parse(input)?;
-        let (
-            input,
-            (line_defined, last_line_defined, num_upvalues, num_params, is_vararg, max_stack),
-        ) = tuple((lua_int(header), lua_int(header), be_u8, be_u8, be_u8, be_u8))(input)?;
-        log::trace!(
-            "chunk: {}, line: {line_defined}-{last_line_defined}",
-            String::from_utf8_lossy(name)
-        );
+        let (input, (line_defined, last_line_defined, num_params, is_vararg, max_stack)) =
+            tuple((lua_int(header), lua_int(header), be_u8, be_u8, be_u8))(input)?;
+        log::trace!("chunk: \"\", line: {line_defined}-{last_line_defined}",);
 
         map(
             tuple((
@@ -61,6 +52,9 @@ pub fn lua_chunk<'h, 'a: 'h>(
                         .context("count prototypes")
                         .parse(i)
                 },
+                length_count(lua_int(header).map(|x| x as usize), load_upvalue)
+                    .context("count upvalues"),
+                lua_string(header),
                 length_count(
                     lua_int(header).map(|x| x as usize),
                     lua_int(header).map(|n| (n as u32, 0u32)),
@@ -74,12 +68,21 @@ pub fn lua_chunk<'h, 'a: 'h>(
                 )
                 .context("count upval names"),
             )),
-            move |(instructions, constants, prototypes, source_lines, locals, upvalue_names)| {
+            move |(
+                instructions,
+                constants,
+                prototypes,
+                upvalue_infos,
+                name,
+                source_lines,
+                locals,
+                upvalue_names,
+            )| {
                 LuaChunk {
                     name: name.to_vec(),
                     line_defined,
                     last_line_defined,
-                    num_upvalues,
+                    num_upvalues: upvalue_infos.len() as _,
                     num_params,
                     flags: 0,
                     is_vararg: if (is_vararg & 2) != 0 {
@@ -98,7 +101,7 @@ pub fn lua_chunk<'h, 'a: 'h>(
                     source_lines,
                     locals,
                     upvalue_names,
-                    upvalue_infos: vec![],
+                    upvalue_infos,
                 }
             },
         )

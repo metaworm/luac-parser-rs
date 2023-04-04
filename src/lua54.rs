@@ -1,7 +1,7 @@
 use super::*;
 use complete::le_u8;
 
-fn load_unsigned<'a>(mut limit: usize) -> impl Parser<&'a [u8], usize, ErrorTree<&'a [u8]>> {
+pub fn load_unsigned<'a>(mut limit: usize) -> impl Parser<&'a [u8], usize, ErrorTree<&'a [u8]>> {
     move |mut input| -> IResult<&'a [u8], usize> {
         let mut x = 0;
         limit >>= 7;
@@ -20,15 +20,15 @@ fn load_unsigned<'a>(mut limit: usize) -> impl Parser<&'a [u8], usize, ErrorTree
     }
 }
 
-fn load_size(input: &[u8]) -> IResult<&[u8], usize> {
+pub fn load_size(input: &[u8]) -> IResult<&[u8], usize> {
     load_unsigned(!0).parse(input)
 }
 
-fn lua_int(input: &[u8]) -> IResult<&[u8], u64> {
+pub fn lua_int(input: &[u8]) -> IResult<&[u8], u64> {
     map(load_unsigned(i32::MAX as _), |x| x as u64)(input)
 }
 
-fn load_string(input: &[u8]) -> IResult<&[u8], &[u8]> {
+pub fn load_string(input: &[u8]) -> IResult<&[u8], &[u8]> {
     let (input, n) = load_size(input)?;
     if n == 0 {
         return Ok((input, &[]));
@@ -36,7 +36,7 @@ fn load_string(input: &[u8]) -> IResult<&[u8], &[u8]> {
     context("string", take(n - 1))(input)
 }
 
-fn load_upvalue(input: &[u8]) -> IResult<&[u8], UpVal> {
+pub fn load_upvalue(input: &[u8]) -> IResult<&[u8], UpVal> {
     map(tuple((le_u8, le_u8, le_u8)), |(on_stack, id, kind)| UpVal {
         on_stack: on_stack != 0,
         id,
@@ -44,7 +44,7 @@ fn load_upvalue(input: &[u8]) -> IResult<&[u8], UpVal> {
     })(input)
 }
 
-fn lua_local<'a>(_header: &LuaHeader) -> impl Parser<&'a [u8], LuaLocal, ErrorTree<&'a [u8]>> {
+pub fn lua_local<'a>(_header: &LuaHeader) -> impl Parser<&'a [u8], LuaLocal, ErrorTree<&'a [u8]>> {
     tuple((load_string, lua_int, lua_int))
         .map(|(name, start_pc, end_pc)| LuaLocal {
             name: String::from_utf8_lossy(name).into(),

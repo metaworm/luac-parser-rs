@@ -25,7 +25,7 @@ const BCDUMP_KTAB_INT: u8 = 3;
 const BCDUMP_KTAB_NUM: u8 = 4;
 const BCDUMP_KTAB_STR: u8 = 5;
 
-fn uleb128_33(mut input: &[u8]) -> IResult<&[u8], u32, ErrorTree<&[u8]>> {
+pub fn uleb128_33(mut input: &[u8]) -> IResult<&[u8], u32, ErrorTree<&[u8]>> {
     let v;
     (input, v) = le_u8(input)?;
     let mut v = v as u32 >> 1; // uint32_t v = (*p++ >> 1);
@@ -80,7 +80,7 @@ pub fn lj_header(input: &[u8]) -> IResult<&[u8], LuaHeader, ErrorTree<&[u8]>> {
     Ok((rest, result))
 }
 
-fn lj_complex_constant<'a, 'h>(
+pub fn lj_complex_constant<'a, 'h>(
     stack: &'h RefCell<Vec<LuaChunk>>,
     protos: &'h RefCell<Vec<LuaChunk>>,
     endian: Endianness,
@@ -119,7 +119,7 @@ fn lj_complex_constant<'a, 'h>(
     }
 }
 
-fn lj_tab<'a>(endian: Endianness) -> impl Parser<&'a [u8], LuaConstant, ErrorTree<&'a [u8]>> {
+pub fn lj_tab<'a>(endian: Endianness) -> impl Parser<&'a [u8], LuaConstant, ErrorTree<&'a [u8]>> {
     move |input: &'a [u8]| {
         let (input, (narray, nhash)) = tuple((leb128_u32, leb128_u32))(input)?;
         // println!("#array {narray} #hash {nhash}");
@@ -158,7 +158,7 @@ fn combine_number(lo: u32, hi: u32, endian: Endianness) -> f64 {
     }
 }
 
-fn lj_tabk<'a>(endian: Endianness) -> impl Parser<&'a [u8], LuaConstant, ErrorTree<&'a [u8]>> {
+pub fn lj_tabk<'a>(endian: Endianness) -> impl Parser<&'a [u8], LuaConstant, ErrorTree<&'a [u8]>> {
     move |input: &'a [u8]| {
         let (input, ty) = leb128_usize(input)?;
         // println!("tabk: {ty}");

@@ -1,5 +1,6 @@
-use super::*;
 use complete::le_u8;
+
+use super::{lua52::load_upvalue, *};
 
 pub fn load_string(input: &[u8]) -> IResult<&[u8], &[u8]> {
     let (mut input, n) = be_u8(input)?;
@@ -15,15 +16,7 @@ pub fn load_string(input: &[u8]) -> IResult<&[u8], &[u8]> {
     take(n as usize - 1)(input)
 }
 
-fn load_upvalue(input: &[u8]) -> IResult<&[u8], UpVal> {
-    map(tuple((le_u8, le_u8)), |(on_stack, id)| UpVal {
-        on_stack: on_stack != 0,
-        id,
-        kind: 0,
-    })(input)
-}
-
-fn lua_local<'a>(header: &LuaHeader) -> impl Parser<&'a [u8], LuaLocal, ErrorTree<&'a [u8]>> {
+pub fn lua_local<'a>(header: &LuaHeader) -> impl Parser<&'a [u8], LuaLocal, ErrorTree<&'a [u8]>> {
     tuple((load_string, lua_int(header), lua_int(header)))
         .map(|(name, start_pc, end_pc)| LuaLocal {
             name: String::from_utf8_lossy(name).into(),
@@ -94,7 +87,7 @@ pub fn lua_chunk<'h, 'a: 'h>(
             move |(
                 instructions,
                 constants,
-                upvalues,
+                upvalue_infos,
                 prototypes,
                 source_lines,
                 locals,
@@ -104,7 +97,7 @@ pub fn lua_chunk<'h, 'a: 'h>(
                     name: name.to_vec(),
                     line_defined,
                     last_line_defined,
-                    num_upvalues: upvalues.len() as _,
+                    num_upvalues: upvalue_infos.len() as _,
                     num_params,
                     flags: 0,
                     is_vararg: if (is_vararg & 2) != 0 {
@@ -122,7 +115,7 @@ pub fn lua_chunk<'h, 'a: 'h>(
                     source_lines,
                     locals,
                     upvalue_names,
-                    upvalue_infos: upvalues,
+                    upvalue_infos,
                     num_constants: vec![],
                 }
             },

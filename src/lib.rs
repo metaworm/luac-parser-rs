@@ -27,6 +27,7 @@ use nom_supreme::{error::*, ParserExt};
 use serde::{Deserialize, Serialize};
 
 pub mod lua51;
+pub mod lua52;
 pub mod lua53;
 pub mod lua54;
 pub mod luajit;
@@ -210,6 +211,40 @@ fn lua_header(input: &[u8]) -> IResult<&[u8], LuaHeader, ErrorTree<&[u8]>> {
             ),
             map(
                 tuple((
+                    tag(b"\x52"),
+                    be_u8,
+                    be_u8,
+                    be_u8,
+                    be_u8,
+                    be_u8,
+                    be_u8,
+                    be_u8,
+                    take(6usize), // LUAC_DATA
+                )),
+                |(
+                    _,
+                    format_version,
+                    big_endian,
+                    int_size,
+                    size_t_size,
+                    instruction_size,
+                    number_size,
+                    number_integral,
+                    _,
+                )| LuaHeader {
+                    lua_version: LUA52,
+                    format_version,
+                    big_endian: big_endian != 1,
+                    int_size,
+                    size_t_size,
+                    instruction_size,
+                    number_size,
+                    number_integral: number_integral != 0,
+                    ..Default::default()
+                },
+            ),
+            map(
+                tuple((
                     tag(b"\x53"),
                     be_u8,
                     take(6usize), // LUAC_DATA
@@ -376,6 +411,7 @@ pub fn lua_bytecode(input: &[u8]) -> IResult<&[u8], LuaBytecode, ErrorTree<&[u8]
     log::trace!("header: {header:?}");
     let (input, main_chunk) = match header.lua_version {
         LUA51 => lua51::lua_chunk(&header).parse(input)?,
+        LUA52 => lua52::lua_chunk(&header).parse(input)?,
         LUA53 => lua53::lua_chunk(&header).parse(input)?,
         LUA54 => lua54::lua_chunk(&header).parse(input)?,
         LUAJ1 | LUAJ2 => luajit::lj_chunk(&header).parse(input)?,
