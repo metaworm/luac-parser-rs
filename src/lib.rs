@@ -1,4 +1,4 @@
-#![feature(ptr_sub_ptr, once_cell, box_patterns)]
+#![feature(ptr_sub_ptr, lazy_cell, box_patterns)]
 
 use std::{borrow::Cow, rc::Rc};
 

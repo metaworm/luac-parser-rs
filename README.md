@@ -1,4 +1,7 @@
 
+[![crates.io](https://img.shields.io/crates/v/luac-parser.svg)](https://crates.io/crates/luac-parser)
+[![docs.rs](https://docs.rs/luac-parser/badge.svg)](https://docs.rs/luac-parser)
+
 # luac-parser (中文)
 
 lua字节码解析器, 目前支持 lua51, lua52, lua53, lua54, luajit
