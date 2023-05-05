@@ -1,11 +1,11 @@
 [package]
 name = "luac-parser"
-version = "0.3.1"
+version = "0.3.2"
 edition = "2021"
 documentation = "https://docs.rs/luac-parser"
 license = "MIT"
 include = ["/src", "README.md"]
-keywords = ['lua', 'bytecode', 'parser', 'luajit']
+keywords = ['lua', 'bytecode', 'parser', 'luajit', 'luau']
 description = "lua bytecode parser"
 repository = "https://github.com/metaworm/luac-parser-rs"
 

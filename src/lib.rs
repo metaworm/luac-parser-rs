@@ -31,6 +31,7 @@ pub mod lua52;
 pub mod lua53;
 pub mod lua54;
 pub mod luajit;
+pub mod luau;
 pub mod utils;
 
 pub type IResult<I, O, E = ErrorTree<I>> = Result<(I, O), nom::Err<E>>;
@@ -76,15 +77,16 @@ impl std::fmt::Display for LuaNumber {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ConstTable {
     pub array: Vec<LuaConstant>,
     pub hash: Vec<(LuaConstant, LuaConstant)>,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum LuaConstant {
+    #[default]
     Null,
     Bool(bool),
     Number(LuaNumber),
@@ -92,6 +94,8 @@ pub enum LuaConstant {
     // for luajit
     Proto(usize),
     Table(Box<ConstTable>),
+    // // for luau
+    // Imp(u32),
 }
 
 impl std::fmt::Debug for LuaConstant {
@@ -99,7 +103,10 @@ impl std::fmt::Debug for LuaConstant {
         match self {
             Self::Null => write!(f, "Null"),
             Self::Bool(arg0) => f.debug_tuple("Bool").field(arg0).finish(),
-            Self::Number(arg0) => f.debug_tuple("Number").field(arg0).finish(),
+            Self::Number(arg0) => match arg0 {
+                LuaNumber::Float(n) => f.debug_tuple("Number").field(n).finish(),
+                LuaNumber::Integer(n) => f.debug_tuple("Integer").field(n).finish(),
+            },
             Self::String(arg0) => f
                 .debug_tuple("String")
                 .field(&String::from_utf8_lossy(arg0))
@@ -110,15 +117,17 @@ impl std::fmt::Debug for LuaConstant {
                 .field("array", array)
                 .field("hash", hash)
                 .finish(),
+            // Self::Imp(imp) => f.debug_tuple("Imp").field(imp).finish(),
         }
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct LuaLocal {
     pub name: String,
     pub start_pc: u64,
     pub end_pc: u64,
+    pub reg: u8, // for luau
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -134,7 +143,7 @@ pub struct UpVal {
     pub kind: u8,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Default, Serialize, Deserialize)]
 pub struct LuaChunk {
     pub name: Vec<u8>,
     pub line_defined: u64,
@@ -153,8 +162,25 @@ pub struct LuaChunk {
     pub prototypes: Vec<Self>,
     pub source_lines: Vec<(u32, u32)>,
     pub locals: Vec<LuaLocal>,
-    pub upvalue_infos: Vec<UpVal>, // for lua53
+    /// for lua53
+    pub upvalue_infos: Vec<UpVal>,
     pub upvalue_names: Vec<Vec<u8>>,
+}
+
+impl std::fmt::Debug for LuaChunk {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LuaChunk")
+            .field("name", &String::from_utf8_lossy(&self.name))
+            .field("line_defined", &self.line_defined)
+            .field("last_line_defined", &self.last_line_defined)
+            .field("is_vararg", &self.is_vararg.is_some())
+            .field("num_params", &self.num_params)
+            .field("num_upvalues", &self.num_upvalues)
+            .field("locals", &self.locals)
+            .field("constants", &self.constants)
+            .field("prototypes", &self.prototypes)
+            .finish()
+    }
 }
 
 impl LuaChunk {
@@ -164,6 +190,10 @@ impl LuaChunk {
 
     pub fn flags(&self) -> luajit::ProtoFlags {
         luajit::ProtoFlags::from_bits(self.flags).unwrap()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.instructions.is_empty()
     }
 }
 

@@ -50,6 +50,7 @@ pub fn lua_local<'a>(_header: &LuaHeader) -> impl Parser<&'a [u8], LuaLocal, Err
             name: String::from_utf8_lossy(name).into(),
             start_pc,
             end_pc,
+            ..Default::default()
         })
         .context("local")
 }
