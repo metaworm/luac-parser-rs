@@ -88,7 +88,7 @@ pub fn constants<'a>(
     Ok((input, result))
 }
 
-pub fn bytecode(input: &[u8]) -> IResult<&[u8], ()> {
+pub fn bytecode(input: &[u8]) -> IResult<&[u8], LuaChunk> {
     let (input, _version) = le_u8(input)?;
     // string table
     let (input, stable) = length_count(
@@ -181,5 +181,5 @@ pub fn bytecode(input: &[u8]) -> IResult<&[u8], ()> {
     let main = core::mem::take(&mut protos[mainid]);
     assert!(!main.is_empty());
 
-    Ok((input, ()))
+    Ok((input, main))
 }
