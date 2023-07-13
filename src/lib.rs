@@ -25,6 +25,7 @@ use nom::{
 };
 use nom_supreme::{error::*, ParserExt};
 use serde::{Deserialize, Serialize};
+use serde_bytes::ByteBuf;
 
 pub mod lua51;
 pub mod lua52;
@@ -61,7 +62,7 @@ impl LuaHeader {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum LuaNumber {
     Integer(i64),
@@ -90,12 +91,18 @@ pub enum LuaConstant {
     Null,
     Bool(bool),
     Number(LuaNumber),
-    String(Rc<Vec<u8>>),
+    String(Rc<ByteBuf>),
     // for luajit
     Proto(usize),
     Table(Box<ConstTable>),
     // // for luau
     // Imp(u32),
+}
+
+impl<T: Into<Vec<u8>>> From<T> for LuaConstant {
+    fn from(value: T) -> Self {
+        Self::String(Rc::new(ByteBuf::from(value)))
+    }
 }
 
 impl std::fmt::Debug for LuaConstant {

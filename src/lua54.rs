@@ -166,7 +166,7 @@ fn take_lv_float(input: &[u8]) -> IResult<&[u8], LuaConstant> {
 
 fn take_lv_str(input: &[u8]) -> IResult<&[u8], LuaConstant> {
     let (input, (_, data)) = tuple((alt((tag(b"\x04"), tag("\x14"))), load_string))(input)?;
-    Ok((input, LuaConstant::String(data.to_vec().into())))
+    Ok((input, LuaConstant::from(data.to_vec())))
 }
 
 fn take_lv_u64(input: &[u8]) -> IResult<&[u8], LuaConstant> {

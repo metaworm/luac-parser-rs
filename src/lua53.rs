@@ -152,7 +152,7 @@ fn take_lv_str(input: &[u8]) -> IResult<&[u8], LuaConstant> {
         length_data(le_u8_minus_one),
     ))(input)?;
 
-    Ok((input, LuaConstant::String(data.to_vec().into())))
+    Ok((input, LuaConstant::from(data.to_vec())))
 }
 
 fn take_lv_u64(input: &[u8]) -> IResult<&[u8], LuaConstant> {

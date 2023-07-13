@@ -20,12 +20,12 @@ pub fn varint(mut input: &[u8]) -> IResult<&[u8], usize> {
     Ok((input, x))
 }
 
-pub fn string<'a>(input: &'a [u8], stable: &[Rc<Vec<u8>>]) -> IResult<&'a [u8], Rc<Vec<u8>>> {
+pub fn string<'a>(input: &'a [u8], stable: &[Rc<ByteBuf>]) -> IResult<&'a [u8], Rc<ByteBuf>> {
     map(varint, |i| {
         if i > 0 {
             stable[i - 1].clone()
         } else {
-            Rc::new(vec![])
+            Rc::new(ByteBuf::new())
         }
     })(input)
 }
@@ -57,7 +57,7 @@ pub fn table<'a>(mut input: &'a [u8], k: &[LuaConstant]) -> IResult<&'a [u8], Co
 
 pub fn constants<'a>(
     mut input: &'a [u8],
-    stable: &[Rc<Vec<u8>>],
+    stable: &[Rc<ByteBuf>],
 ) -> IResult<&'a [u8], Vec<LuaConstant>> {
     let num;
     (input, num) = varint(input)?;
@@ -98,7 +98,7 @@ pub fn bytecode(input: &[u8]) -> IResult<&[u8], LuaChunk> {
                 let (input, n) = varint(input)?;
                 context("string", take(n))(input)
             },
-            |s| Rc::new(s.to_vec()),
+            |s| Rc::new(ByteBuf::from(s.to_vec())),
         ),
     )(input)?;
 
@@ -147,7 +147,7 @@ pub fn bytecode(input: &[u8]) -> IResult<&[u8], LuaChunk> {
                         },
                     ),
                 ),
-                length_count(varint, map(string, |s| s.as_ref().clone())),
+                length_count(varint, map(string, |s| s.as_ref().clone().into_vec())),
             ))(input1)?;
         }
 

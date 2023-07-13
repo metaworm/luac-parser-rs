@@ -112,7 +112,7 @@ pub fn lj_complex_constant<'a, 'h>(
             _ if ty >= BCDUMP_KGC_STR as u64 => {
                 let len = ty - BCDUMP_KGC_STR as u64;
                 let (input, s) = take(len as usize)(input)?;
-                (input, LuaConstant::String(s.to_vec().into()))
+                (input, LuaConstant::from(s.to_vec()))
             }
             _ => unreachable!("BCDUMP_KGC: {ty}"),
         })
@@ -175,7 +175,7 @@ pub fn lj_tabk<'a>(endian: Endianness) -> impl Parser<&'a [u8], LuaConstant, Err
             _ if ty >= BCDUMP_KTAB_STR as usize => {
                 let len = ty - BCDUMP_KTAB_STR as usize;
                 let (input, s) = take(len)(input)?;
-                (input, LuaConstant::String(s.to_vec().into()))
+                (input, LuaConstant::from(s.to_vec()))
             }
             _ => unreachable!("BCDUMP_KTAB: {ty}"),
         })
