@@ -1,5 +1,6 @@
 #![feature(ptr_sub_ptr, lazy_cell, box_patterns)]
 
+use bincode::{Decode, Encode};
 use std::{borrow::Cow, rc::Rc};
 
 #[allow(unused_imports)]
@@ -37,7 +38,7 @@ pub mod utils;
 
 pub type IResult<I, O, E = ErrorTree<I>> = Result<(I, O), nom::Err<E>>;
 
-#[derive(Clone, Default, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Default, Debug, PartialEq, Eq, Serialize, Deserialize, Encode, Decode)]
 pub struct LuaHeader {
     pub lua_version: u8,
     pub format_version: u8,
@@ -62,7 +63,7 @@ impl LuaHeader {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Encode, Decode)]
 #[serde(untagged)]
 pub enum LuaNumber {
     Integer(i64),
@@ -78,20 +79,20 @@ impl std::fmt::Display for LuaNumber {
     }
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, Encode, Decode)]
 pub struct ConstTable {
     pub array: Vec<LuaConstant>,
     pub hash: Vec<(LuaConstant, LuaConstant)>,
 }
 
-#[derive(Clone, Default, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, Deserialize, Encode, Decode)]
 #[serde(untagged)]
 pub enum LuaConstant {
     #[default]
     Null,
     Bool(bool),
     Number(LuaNumber),
-    String(Rc<ByteBuf>),
+    String(#[bincode(with_serde)] Rc<ByteBuf>),
     // for luajit
     Proto(usize),
     Table(Box<ConstTable>),
@@ -129,7 +130,7 @@ impl std::fmt::Debug for LuaConstant {
     }
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize, Encode, Decode)]
 pub struct LuaLocal {
     pub name: String,
     pub start_pc: u64,
@@ -137,20 +138,20 @@ pub struct LuaLocal {
     pub reg: u8, // for luau
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Encode, Decode)]
 pub struct LuaVarArgInfo {
     pub has_arg: bool,
     pub needs_arg: bool,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize, Encode, Decode)]
 pub struct UpVal {
     pub on_stack: bool,
     pub id: u8,
     pub kind: u8,
 }
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Encode, Decode)]
 pub struct LuaChunk {
     pub name: Vec<u8>,
     pub line_defined: u64,
@@ -204,7 +205,7 @@ impl LuaChunk {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Encode, Decode)]
 pub struct LuaBytecode {
     pub header: LuaHeader,
     pub main_chunk: LuaChunk,

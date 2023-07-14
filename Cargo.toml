@@ -1,6 +1,6 @@
 [package]
 name = "luac-parser"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2021"
 documentation = "https://docs.rs/luac-parser"
 license = "MIT"
@@ -21,3 +21,4 @@ bitflags = '2'
 rmp-serde = {version = '1', optional = true}
 serde_bytes = '0.11'
 serde = {version = '1', features = ['derive', 'rc']}
+bincode = {version = '2.0.0-rc', features = ['serde']}
