@@ -83,11 +83,8 @@ pub fn lua_chunk<'h, 'a: 'h>(
                     num_upvalues: upvalue_infos.len() as _,
                     num_params,
                     flags: 0,
-                    is_vararg: if (is_vararg & 2) != 0 {
-                        Some(LuaVarArgInfo {
-                            has_arg: (is_vararg & 1) != 0,
-                            needs_arg: (is_vararg & 4) != 0,
-                        })
+                    is_vararg: if is_vararg != 0 {
+                        Some(LuaVarArgInfo::new())
                     } else {
                         None
                     },

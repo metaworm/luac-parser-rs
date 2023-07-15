@@ -144,6 +144,15 @@ pub struct LuaVarArgInfo {
     pub needs_arg: bool,
 }
 
+impl LuaVarArgInfo {
+    pub fn new() -> Self {
+        Self {
+            has_arg: true,
+            needs_arg: true,
+        }
+    }
+}
+
 #[derive(Debug, Default, Serialize, Deserialize, Encode, Decode)]
 pub struct UpVal {
     pub on_stack: bool,

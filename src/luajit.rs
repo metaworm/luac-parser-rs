@@ -7,23 +7,33 @@ use nom_leb128::{leb128_u32, leb128_u64, leb128_usize};
 
 use super::*;
 
-const FLAG_IS_BIG_ENDIAN: u8 = 0b00000001;
-const FLAG_IS_STRIPPED: u8 = 0b00000010;
-const FLAG_HAS_FFI: u8 = 0b00000100;
+pub const FLAG_IS_BIG_ENDIAN: u8 = 0b00000001;
+pub const FLAG_IS_STRIPPED: u8 = 0b00000010;
+pub const FLAG_HAS_FFI: u8 = 0b00000100;
 
-const BCDUMP_KGC_CHILD: u8 = 0;
-const BCDUMP_KGC_TAB: u8 = 1;
-const BCDUMP_KGC_I64: u8 = 2;
-const BCDUMP_KGC_U64: u8 = 3;
-const BCDUMP_KGC_COMPLEX: u8 = 4;
-const BCDUMP_KGC_STR: u8 = 5;
+/* Flags for prototype. */
+pub const PROTO_CHILD: u8 = 0x01; /* Has child prototypes. */
+pub const PROTO_VARARG: u8 = 0x02; /* Vararg function. */
+pub const PROTO_FFI: u8 = 0x04; /* Uses BC_KCDATA for FFI datatypes. */
+pub const PROTO_NOJIT: u8 = 0x08; /* JIT disabled for this function. */
+pub const PROTO_ILOOP: u8 = 0x10; /* Patched bytecode with ILOOP etc. */
+/* Only used during parsing. */
+pub const PROTO_HAS_RETURN: u8 = 0x20; /* Already emitted a return. */
+pub const PROTO_FIXUP_RETURN: u8 = 0x40; /* Need to fixup emitted returns. */
 
-const BCDUMP_KTAB_NIL: u8 = 0;
-const BCDUMP_KTAB_FALSE: u8 = 1;
-const BCDUMP_KTAB_TRUE: u8 = 2;
-const BCDUMP_KTAB_INT: u8 = 3;
-const BCDUMP_KTAB_NUM: u8 = 4;
-const BCDUMP_KTAB_STR: u8 = 5;
+pub const BCDUMP_KGC_CHILD: u8 = 0;
+pub const BCDUMP_KGC_TAB: u8 = 1;
+pub const BCDUMP_KGC_I64: u8 = 2;
+pub const BCDUMP_KGC_U64: u8 = 3;
+pub const BCDUMP_KGC_COMPLEX: u8 = 4;
+pub const BCDUMP_KGC_STR: u8 = 5;
+
+pub const BCDUMP_KTAB_NIL: u8 = 0;
+pub const BCDUMP_KTAB_FALSE: u8 = 1;
+pub const BCDUMP_KTAB_TRUE: u8 = 2;
+pub const BCDUMP_KTAB_INT: u8 = 3;
+pub const BCDUMP_KTAB_NUM: u8 = 4;
+pub const BCDUMP_KTAB_STR: u8 = 5;
 
 pub fn uleb128_33(mut input: &[u8]) -> IResult<&[u8], u32, ErrorTree<&[u8]>> {
     let v;
@@ -283,6 +293,11 @@ fn lj_proto<'a, 'h>(
                 constants,
                 num_constants,
                 max_stack: framesize,
+                is_vararg: if flags & PROTO_VARARG != 0 {
+                    Some(LuaVarArgInfo::new())
+                } else {
+                    None
+                },
                 prototypes: protos.into_inner(),
                 ..Default::default()
             }),
