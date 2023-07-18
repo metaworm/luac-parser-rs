@@ -85,7 +85,7 @@ pub struct ConstTable {
     pub hash: Vec<(LuaConstant, LuaConstant)>,
 }
 
-#[derive(Clone, Default, Serialize, Deserialize, Encode, Decode)]
+#[derive(Clone, Default, Deserialize, Encode, Decode)]
 #[serde(untagged)]
 pub enum LuaConstant {
     #[default]
@@ -98,6 +98,28 @@ pub enum LuaConstant {
     Table(Box<ConstTable>),
     // // for luau
     // Imp(u32),
+}
+
+impl Serialize for LuaConstant {
+    fn serialize<S>(&self, ser: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            LuaConstant::Null => ser.serialize_unit(),
+            LuaConstant::Bool(b) => ser.serialize_bool(*b),
+            LuaConstant::Number(n) => n.serialize(ser),
+            LuaConstant::String(s) => {
+                if let Ok(s) = core::str::from_utf8(s) {
+                    ser.serialize_str(s)
+                } else {
+                    ser.serialize_bytes(s)
+                }
+            }
+            LuaConstant::Proto(p) => p.serialize(ser),
+            LuaConstant::Table(t) => t.serialize(ser),
+        }
+    }
 }
 
 impl<T: Into<Vec<u8>>> From<T> for LuaConstant {
