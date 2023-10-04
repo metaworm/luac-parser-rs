@@ -42,9 +42,9 @@ pub fn uleb128_33(mut input: &[u8]) -> IResult<&[u8], u32, ErrorTree<&[u8]>> {
     if v >= 0x40 {
         let mut sh = -1i32;
         v &= 0x3f;
-        let mut p = le_u8(input)?.1;
         loop {
             sh += 7;
+            let mut p = le_u8(input)?.1;
             v |= (p as u32 & 0x7f) << (sh as u32);
             (input, p) = le_u8(input)?;
             if p < 0x80 {

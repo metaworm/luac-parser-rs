@@ -63,7 +63,7 @@ impl LuaHeader {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Encode, Decode)]
 #[serde(untagged)]
 pub enum LuaNumber {
     Integer(i64),
