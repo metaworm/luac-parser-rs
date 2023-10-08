@@ -49,8 +49,7 @@ pub struct LuaHeader {
     pub number_size: u8,
     pub number_integral: bool,
     // for luajit
-    pub stripped: bool,
-    pub has_ffi: bool,
+    pub lj_flags: u8,
 }
 
 impl LuaHeader {
@@ -60,6 +59,14 @@ impl LuaHeader {
         } else {
             Endianness::Little
         }
+    }
+
+    pub fn version(&self) -> LuaVersion {
+        LuaVersion(self.lua_version)
+    }
+
+    pub fn test_luajit_flag(&self, flag: u8) -> bool {
+        self.lj_flags & flag != 0
     }
 }
 
@@ -267,7 +274,7 @@ fn lua_header(input: &[u8]) -> IResult<&[u8], LuaHeader, ErrorTree<&[u8]>> {
                     number_size,
                     number_integral,
                 )| LuaHeader {
-                    lua_version: LUA51,
+                    lua_version: LUA51.0,
                     format_version,
                     big_endian: big_endian != 1,
                     int_size,
@@ -301,7 +308,7 @@ fn lua_header(input: &[u8]) -> IResult<&[u8], LuaHeader, ErrorTree<&[u8]>> {
                     number_integral,
                     _,
                 )| LuaHeader {
-                    lua_version: LUA52,
+                    lua_version: LUA52.0,
                     format_version,
                     big_endian: big_endian != 1,
                     int_size,
@@ -339,7 +346,7 @@ fn lua_header(input: &[u8]) -> IResult<&[u8], LuaHeader, ErrorTree<&[u8]>> {
                     _,
                     _,
                 )| LuaHeader {
-                    lua_version: LUA53,
+                    lua_version: LUA53.0,
                     format_version,
                     big_endian: cfg!(target_endian = "big"),
                     int_size,
@@ -373,7 +380,7 @@ fn lua_header(input: &[u8]) -> IResult<&[u8], LuaHeader, ErrorTree<&[u8]>> {
                     _,
                     _,
                 )| LuaHeader {
-                    lua_version: LUA54,
+                    lua_version: LUA54.0,
                     format_version,
                     big_endian: cfg!(target_endian = "big"),
                     int_size: 4,
@@ -478,7 +485,7 @@ fn lua_number<'a>(header: &LuaHeader) -> impl Parser<&'a [u8], LuaNumber, ErrorT
 pub fn lua_bytecode(input: &[u8]) -> IResult<&[u8], LuaBytecode, ErrorTree<&[u8]>> {
     let (input, header) = alt((lua_header, luajit::lj_header))(input)?;
     log::trace!("header: {header:?}");
-    let (input, main_chunk) = match header.lua_version {
+    let (input, main_chunk) = match header.version() {
         LUA51 => lua51::lua_chunk(&header).parse(input)?,
         LUA52 => lua52::lua_chunk(&header).parse(input)?,
         LUA53 => lua53::lua_chunk(&header).parse(input)?,
@@ -509,9 +516,28 @@ impl LuaBytecode {
     }
 }
 
-pub const LUA51: u8 = 0x51;
-pub const LUA52: u8 = 0x52;
-pub const LUA53: u8 = 0x53;
-pub const LUA54: u8 = 0x54;
-pub const LUAJ1: u8 = 0x11;
-pub const LUAJ2: u8 = 0x12;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct LuaVersion(pub u8);
+
+impl std::fmt::Display for LuaVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match *self {
+            LUAJ1 => write!(f, "luajit1"),
+            LUAJ2 => write!(f, "luajit2"),
+            v => write!(f, "lua{:x}", v.0),
+        }
+    }
+}
+
+impl LuaVersion {
+    pub fn is_luajit(self) -> bool {
+        matches!(self, LUAJ1 | LUAJ2)
+    }
+}
+
+pub const LUA51: LuaVersion = LuaVersion(0x51);
+pub const LUA52: LuaVersion = LuaVersion(0x52);
+pub const LUA53: LuaVersion = LuaVersion(0x53);
+pub const LUA54: LuaVersion = LuaVersion(0x54);
+pub const LUAJ1: LuaVersion = LuaVersion(0x11);
+pub const LUAJ2: LuaVersion = LuaVersion(0x12);

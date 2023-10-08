@@ -7,9 +7,12 @@ use nom_leb128::{leb128_u32, leb128_u64, leb128_usize};
 
 use super::*;
 
+/* Header flags of bytecode */
 pub const FLAG_IS_BIG_ENDIAN: u8 = 0b00000001;
 pub const FLAG_IS_STRIPPED: u8 = 0b00000010;
 pub const FLAG_HAS_FFI: u8 = 0b00000100;
+// for luajit2.x
+pub const FLAG_F_FR2: u8 = 0x08;
 
 /* Flags for prototype. */
 pub const PROTO_CHILD: u8 = 0x01; /* Has child prototypes. */
@@ -59,30 +62,28 @@ pub fn lj_header(input: &[u8]) -> IResult<&[u8], LuaHeader, ErrorTree<&[u8]>> {
     let (rest, (_, result)) = tuple((
         tag(b"\x1bLJ"),
         alt((
-            map(tuple((tag(b"\x01"), be_u8)), |(_, flags)| LuaHeader {
-                lua_version: LUAJ1,
+            map(tuple((tag(b"\x01"), be_u8)), |(_, lj_flags)| LuaHeader {
+                lua_version: LUAJ1.0,
                 format_version: 0,
-                big_endian: flags & FLAG_IS_BIG_ENDIAN != 0,
+                big_endian: lj_flags & FLAG_IS_BIG_ENDIAN != 0,
                 int_size: 4,
                 size_t_size: 4,
                 instruction_size: 4,
                 number_size: 4,
                 number_integral: false,
-                stripped: flags & FLAG_IS_STRIPPED != 0,
-                has_ffi: flags & FLAG_HAS_FFI != 0,
+                lj_flags,
             })
             .context("luajit1"),
-            map(tuple((tag(b"\x02"), be_u8)), |(_, flags)| LuaHeader {
-                lua_version: LUAJ2,
+            map(tuple((tag(b"\x02"), be_u8)), |(_, lj_flags)| LuaHeader {
+                lua_version: LUAJ2.0,
                 format_version: 0,
-                big_endian: flags & FLAG_IS_BIG_ENDIAN != 0,
+                big_endian: lj_flags & FLAG_IS_BIG_ENDIAN != 0,
                 int_size: 4,
                 size_t_size: 4,
                 instruction_size: 4,
                 number_size: 4,
                 number_integral: false,
-                stripped: flags & FLAG_IS_STRIPPED != 0,
-                has_ffi: flags & FLAG_HAS_FFI != 0,
+                lj_flags,
             })
             .context("luajit2"),
         )),
@@ -236,7 +237,7 @@ fn lj_proto<'a, 'h>(
         let mut line_defined = 0;
         let mut numline = 0;
         let mut debuginfo_size = 0;
-        if !header.stripped {
+        if !header.test_luajit_flag(FLAG_IS_STRIPPED) {
             (input, (debuginfo_size, line_defined, numline)) =
                 tuple((leb128_u64, leb128_u64, leb128_u64))(input)?;
         }
@@ -310,7 +311,7 @@ pub fn lj_chunk<'h, 'a: 'h>(
 ) -> impl Parser<&'a [u8], LuaChunk, ErrorTree<&'a [u8]>> + 'h {
     move |mut input| {
         let mut name = &b""[..];
-        if !header.stripped {
+        if !header.test_luajit_flag(FLAG_IS_STRIPPED) {
             let namelen;
             (input, namelen) = leb128_u32.parse(input)?;
             (input, name) = take(namelen as usize)(input)?;
