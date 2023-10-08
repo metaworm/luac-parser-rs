@@ -1,6 +1,6 @@
 [package]
 name = "luac-parser"
-version = "0.4.2"
+version = "0.5.0"
 edition = "2021"
 documentation = "https://docs.rs/luac-parser"
 license = "MIT"
