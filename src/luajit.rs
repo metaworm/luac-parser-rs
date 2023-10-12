@@ -204,7 +204,7 @@ fn lj_num_constant<'a>(
                 LuaNumber::Float(combine_number(lo, hi, endian))
             })(input)
         } else {
-            Ok((input, LuaNumber::Integer(lo as _)))
+            Ok((input, LuaNumber::Integer(lo as i32 as _)))
         }
     }
 }
