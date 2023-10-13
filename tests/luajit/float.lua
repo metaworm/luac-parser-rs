@@ -6,3 +6,6 @@ print(200 * 200)
 
 print(111122223333)
 print(111122223333.4444)
+
+print(var * -150)
+print(0xFFFFFFFF123)
