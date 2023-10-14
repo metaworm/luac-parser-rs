@@ -24,19 +24,19 @@ pub const PROTO_ILOOP: u8 = 0x10; /* Patched bytecode with ILOOP etc. */
 pub const PROTO_HAS_RETURN: u8 = 0x20; /* Already emitted a return. */
 pub const PROTO_FIXUP_RETURN: u8 = 0x40; /* Need to fixup emitted returns. */
 
-pub const BCDUMP_KGC_CHILD: u8 = 0;
-pub const BCDUMP_KGC_TAB: u8 = 1;
-pub const BCDUMP_KGC_I64: u8 = 2;
-pub const BCDUMP_KGC_U64: u8 = 3;
-pub const BCDUMP_KGC_COMPLEX: u8 = 4;
-pub const BCDUMP_KGC_STR: u8 = 5;
+pub const BCDUMP_KGC_CHILD: u64 = 0;
+pub const BCDUMP_KGC_TAB: u64 = 1;
+pub const BCDUMP_KGC_I64: u64 = 2;
+pub const BCDUMP_KGC_U64: u64 = 3;
+pub const BCDUMP_KGC_COMPLEX: u64 = 4;
+pub const BCDUMP_KGC_STR: u64 = 5;
 
-pub const BCDUMP_KTAB_NIL: u8 = 0;
-pub const BCDUMP_KTAB_FALSE: u8 = 1;
-pub const BCDUMP_KTAB_TRUE: u8 = 2;
-pub const BCDUMP_KTAB_INT: u8 = 3;
-pub const BCDUMP_KTAB_NUM: u8 = 4;
-pub const BCDUMP_KTAB_STR: u8 = 5;
+pub const BCDUMP_KTAB_NIL: usize = 0;
+pub const BCDUMP_KTAB_FALSE: usize = 1;
+pub const BCDUMP_KTAB_TRUE: usize = 2;
+pub const BCDUMP_KTAB_INT: usize = 3;
+pub const BCDUMP_KTAB_NUM: usize = 4;
+pub const BCDUMP_KTAB_STR: usize = 5;
 
 pub fn uleb128_33(mut input: &[u8]) -> IResult<&[u8], u32, ErrorTree<&[u8]>> {
     let v;
@@ -98,7 +98,7 @@ pub fn lj_complex_constant<'a, 'h>(
 ) -> impl Parser<&'a [u8], LuaConstant, ErrorTree<&'a [u8]>> + 'h {
     move |input| {
         let (input, ty) = leb128_u64(input)?;
-        Ok(match ty as u8 {
+        Ok(match ty {
             BCDUMP_KGC_I64 => map(
                 tuple((nom_leb128::leb128_u32, nom_leb128::leb128_u32)),
                 |(lo, hi)| LuaConstant::Number(LuaNumber::Integer(lo as i64 | ((hi as i64) << 32))),
@@ -120,8 +120,8 @@ pub fn lj_complex_constant<'a, 'h>(
                 }
                 None => context("pop proto", fail).parse(input)?,
             },
-            _ if ty >= BCDUMP_KGC_STR as u64 => {
-                let len = ty - BCDUMP_KGC_STR as u64;
+            _ if ty >= BCDUMP_KGC_STR => {
+                let len = ty - BCDUMP_KGC_STR;
                 let (input, s) = take(len as usize)(input)?;
                 (input, LuaConstant::from(s.to_vec()))
             }
@@ -173,7 +173,7 @@ pub fn lj_tabk<'a>(endian: Endianness) -> impl Parser<&'a [u8], LuaConstant, Err
     move |input: &'a [u8]| {
         let (input, ty) = leb128_usize(input)?;
         // println!("tabk: {ty}");
-        Ok(match ty as u8 {
+        Ok(match ty {
             BCDUMP_KTAB_NIL => (input, LuaConstant::Null),
             BCDUMP_KTAB_FALSE => (input, LuaConstant::Bool(false)),
             BCDUMP_KTAB_TRUE => (input, LuaConstant::Bool(true)),
