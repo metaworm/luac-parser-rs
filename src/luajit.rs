@@ -133,29 +133,14 @@ pub fn lj_complex_constant<'a, 'h>(
 pub fn lj_tab<'a>(endian: Endianness) -> impl Parser<&'a [u8], LuaConstant, ErrorTree<&'a [u8]>> {
     move |input: &'a [u8]| {
         let (input, (narray, nhash)) = tuple((leb128_u32, leb128_u32))(input)?;
-        // println!("#array {narray} #hash {nhash}");
-        let (input, (arr, mut hash)) = tuple((
+        let (input, (array, hash)) = tuple((
             count(lj_tabk(endian).context("count table array"), narray as _),
             count(
                 tuple((lj_tabk(endian), lj_tabk(endian))).context("count table hash"),
                 nhash as _,
             ),
         ))(input)?;
-        let mut aiter = arr.into_iter();
-        match aiter.next() {
-            Some(LuaConstant::Null) | None => {}
-            Some(a0) => hash.push((LuaConstant::Number(LuaNumber::Integer(0)), a0.clone())),
-        }
-        Ok((
-            input,
-            LuaConstant::Table(
-                ConstTable {
-                    array: aiter.collect(),
-                    hash,
-                }
-                .into(),
-            ),
-        ))
+        Ok((input, LuaConstant::Table(ConstTable { array, hash }.into())))
     }
 }
 

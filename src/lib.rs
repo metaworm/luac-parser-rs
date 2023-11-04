@@ -86,6 +86,7 @@ impl std::fmt::Display for LuaNumber {
     }
 }
 
+/// Constant table for luajit, notice that the index of the array part starts at 0
 #[derive(Clone, Debug, Default, Serialize, Deserialize, Encode, Decode)]
 pub struct ConstTable {
     pub array: Vec<LuaConstant>,
@@ -225,6 +226,7 @@ impl std::fmt::Debug for LuaChunk {
             .field("locals", &self.locals)
             .field("constants", &self.constants)
             .field("prototypes", &self.prototypes)
+            .field("upvalue_infos", &self.upvalue_infos)
             .finish()
     }
 }
