@@ -89,7 +89,15 @@ pub fn constants<'a>(
 }
 
 pub fn bytecode(input: &[u8]) -> IResult<&[u8], LuaChunk> {
-    let (input, _version) = le_u8(input)?;
+    let (mut input, _version) = le_u8(input)?;
+    let mut types_version = 0;
+
+    if _version > 4 {
+        let (input2, _types_version) = le_u8(input)?;
+        types_version = _types_version;
+        input = input2
+    }
+
     // string table
     let (input, stable) = length_count(
         varint,
@@ -109,8 +117,22 @@ pub fn bytecode(input: &[u8]) -> IResult<&[u8], LuaChunk> {
     let string = |i| string(i, &stable);
 
     for _ in 0..num {
-        let (input1, (max_stack, num_params, num_upvalues, is_vararg)) =
+        let (mut input1, (max_stack, num_params, num_upvalues, is_vararg)) =
             tuple((be_u8, be_u8, be_u8, be_u8))(input)?;
+
+        if _version >= 4 {
+            let (input2, _flags) = be_u8(input1)?;
+            let (mut input2, types_size) = varint(input2)?;
+
+            if types_size > 0 && types_version == 1 {
+                for _ in 0..types_size {
+                    let (input3, _byte) = le_u8(input2)?;
+                    input2 = input3
+                }
+            }
+
+            input1 = input2;
+        }
 
         let (mut input1, (instructions, constants, prototypes, line_defined, name, has_lineinfo)) =
             tuple((
