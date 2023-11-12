@@ -92,7 +92,7 @@ pub fn bytecode(input: &[u8]) -> IResult<&[u8], LuaChunk> {
     let (mut input, _version) = le_u8(input)?;
     let mut types_version = 0;
 
-    if _version > 4 {
+    if _version >= 4 {
         let (input2, _types_version) = le_u8(input)?;
         types_version = _types_version;
         input = input2
