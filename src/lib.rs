@@ -462,10 +462,10 @@ fn lua_number<'a>(header: &LuaHeader) -> impl Parser<&'a [u8], LuaNumber, ErrorT
             int == true,
             map(
                 alt((
-                    must(size == 8, map(complete::be_i8, |v| v as i64)),
-                    must(size == 4, map(complete::i16(header.endian()), |v| v as i64)),
-                    must(size == 2, map(complete::i32(header.endian()), |v| v as i64)),
-                    must(size == 1, map(complete::i64(header.endian()), |v| v as i64)),
+                    must(size == 1, map(complete::be_i8, |v| v as i64)),
+                    must(size == 2, map(complete::i16(header.endian()), |v| v as i64)),
+                    must(size == 4, map(complete::i32(header.endian()), |v| v as i64)),
+                    must(size == 8, map(complete::i64(header.endian()), |v| v as i64)),
                 )),
                 |v| LuaNumber::Integer(v),
             ),
