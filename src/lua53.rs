@@ -139,7 +139,11 @@ fn take_lv_float(input: &[u8]) -> IResult<&[u8], LuaConstant> {
 }
 
 fn le_u8_minus_one(input: &[u8]) -> IResult<&[u8], u8> {
-    let (input, out) = le_u8(input)?;
+    let (mut input, out) = le_u8(input)?;
+    if out == 0xFF {
+        // TODO: usize
+        (input, out) = complete::le_u64(input)?;
+    }
     Ok((input, out - 1))
 }
 
